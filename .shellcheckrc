@@ -1,0 +1,2 @@
+# Modules share globals, including indirect configuration-variable lookups.
+disable=SC2034

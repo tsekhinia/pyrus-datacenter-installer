@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Pyrus Datacenter single-host installer. Run from a reviewed checkout.
+set +x
+set -Eeuo pipefail
+umask 077
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+export ROOT_DIR
+for module in common config preflight system docker pyrus storage smtp healthcheck; do
+    # shellcheck source=/dev/null
+    source "$ROOT_DIR/lib/$module.sh"
+done
+trap 'on_error "$?" "$LINENO"' ERR
+
+main() {
+    local mode=install input='' arg
+    INSTALL_DIR=/opt/pyrus
+    ACCEPT_LOW_RESOURCES=false
+    RETRY_STEP=
+    while (($#)); do
+        arg=$1; shift
+        case "$arg" in
+            --help|-h) usage; return ;;
+            --preflight) mode=preflight ;;
+            --plan) mode=plan ;;
+            --check) mode=check ;;
+            --resume) mode=resume ;;
+            --config) (($#)) || fatal 'Missing --config value'; input=$1; shift ;;
+            --install-dir) (($#)) || fatal 'Missing directory'; INSTALL_DIR=$1; shift ;;
+            --accept-low-resources) ACCEPT_LOW_RESOURCES=true ;;
+            --retry-step) (($#)) || fatal 'Missing step'; RETRY_STEP=$1; shift ;;
+            *) fatal "Unknown argument: $arg" ;;
+        esac
+    done
+    [[ -z "$RETRY_STEP" || "$mode" == resume ]] || fatal '--retry-step requires --resume'
+    [[ "$RETRY_STEP" =~ ^(db_init|db_start|elastic_init|storage)?$ ]] || fatal 'Unsupported retry step'
+    require_commands python3 curl openssl sha256sum timeout flock ss getent
+    validate_install_dir
+    if [[ "$mode" == preflight ]]; then run_preflight false; return; fi
+    require_root
+    if [[ "$mode" == resume || "$mode" == check ]]; then
+        [[ -z "$input" ]] || fatal 'Resume/check uses saved configuration; do not pass --config'
+        load_saved_config
+        check_docker
+        if [[ -f "$INSTALL_DIR/docker-compose.yml" ]]; then verify_artifacts;
+        elif [[ "$mode" == check ]]; then fatal 'Compose has not been prepared yet'; fi
+        if [[ "$mode" == check ]]; then run_healthcheck; return; fi
+    else
+        [[ ! -e "$INSTALL_DIR/.installer" ]] || fatal 'Installation exists; use --resume or --check'
+        if [[ -n "$input" ]]; then load_config "$input"; else collect_configuration; fi
+        validate_config
+    fi
+    run_preflight "$([[ "$mode" == resume ]] && echo true || echo false)"
+    validate_tls
+    check_dns_smtp
+    show_plan
+    if [[ "$mode" == plan ]]; then info 'Plan only: no files or containers changed.'; return; fi
+    confirm 'Apply this installation plan? Type yes' || fatal 'Cancelled'
+    if [[ "$mode" != resume ]]; then prepare_installation; fi
+    acquire_lock
+    start_log
+    if [[ -f "$STATE_DIR/complete.done" ]]; then
+        info 'Installation is complete; checking the existing deployment.'
+        run_healthcheck
+        python3 "$ROOT_DIR/scripts/config.py" scrub "$STATE_DIR/secrets.json"
+        return
+    fi
+    prepare_system
+    prepare_compose
+    pull_images
+    start_infrastructure
+    configure_database_passwords
+    initialize_pyrus
+    configure_storage
+    configure_pyrus
+    configure_smtp
+    start_pyrus
+    run_healthcheck
+    mark_done complete
+    python3 "$ROOT_DIR/scripts/config.py" scrub "$STATE_DIR/secrets.json"
+    info "Pyrus Datacenter is ready: https://$PYRUS_HOSTNAME/ (administrator: $ADMIN_EMAIL)"
+}
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then main "$@"; fi

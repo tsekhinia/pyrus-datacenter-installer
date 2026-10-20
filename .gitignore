@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+*.log
+*.pem
+*.key
+*.crt
+.env
+installer.json
+compose-generated/
+.installer/
+dist/

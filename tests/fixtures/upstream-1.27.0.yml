@@ -1,0 +1,346 @@
+version: '3.7'
+
+x-common-variables: &common-variables
+    MAIN_CONN_STRING: >
+        {
+            "ConnectionName": "default",
+            "ConnectionString": "Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;",
+            "DatabaseEngine": "Postgres",
+            "DatabaseType": "Data"
+        }
+    PRIVATE_LOGS_CONN_STRING: >
+        {
+            "ConnectionName": "privateLogs",
+            "ConnectionString": "Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;",
+            "DatabaseEngine": "Postgres",
+            "DatabaseType": "PrivateLogs"
+        }
+    PUBLIC_LOGS_CONN_STRING: >
+        {
+            "ConnectionName": "publicLogs",
+            "ConnectionString": "Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;",
+            "DatabaseEngine": "Postgres",
+            "DatabaseType": "PublicLogs"
+        }
+
+x-stores-healthy: &stores-healthy
+    postgres:
+        condition: service_healthy
+    logs:
+        condition: service_healthy
+    elastic:
+        condition: service_healthy
+    nats:
+        condition: service_healthy
+
+x-web-api-healthy: &web-api-healthy
+    web-api:
+        condition: service_healthy
+
+services:
+  postgres:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-pgsql-16:1.27.0
+    restart: always
+    container_name: pyrus-postgresql
+    hostname: pyrus-postgresql
+    volumes:
+      - pyrus_pgsql_data_16:/var/lib/postgresql/data
+      - pyrus_pgsql_logs:/var/log/postgresql
+    networks:
+      - pyrus-backend
+
+  logs:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-logs-pgsql-16:1.27.0
+    restart: always
+    container_name: pyrus-logs-pgsql
+    hostname: pyrus-logs-pgsql
+    volumes:
+      - pyrus_logs_pgsql_data_16:/var/lib/postgresql/data
+      - pyrus_logs_pgsql_logs:/var/log/postgresql
+    networks:
+      - pyrus-backend
+
+  elastic:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/elastic-selfhosted:1.27.0
+    restart: always
+    container_name: pyrus-elastic
+    volumes:
+      - pyrus_elastic_data:/usr/share/elasticsearch/data
+    environment:
+      <<: *common-variables
+      ES_JAVA_OPTS: "-Xms2g -Xmx2g -Dlog4j.formatMsgNoLookups=true"
+      APPLICATION_NAME: elastic
+    networks:
+      - pyrus-backend
+
+  nginx:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-nginx:1.27.0
+    restart: always
+    container_name: pyrus-nginx
+    depends_on:
+      web-api:
+        condition: service_healthy
+      files:
+        condition: service_started
+    ports:
+      - '80:80'
+      - '443:443'
+#    volumes:
+#      - /path/to/cert:/etc/nginx/ssl/cert.crt
+#      - /path/to/key:/etc/nginx/ssl/key.key
+    networks:
+      - pyrus-backend
+
+  nats:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-nats:1.27.0
+    restart: always
+    container_name: pyrus-nats
+    command: "-c /etc/nats/nats.conf"
+    networks:
+      - pyrus-backend
+    volumes:
+      - pyrus_nats_data:/data
+
+  preview:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-preview-generator:1.27.0
+    depends_on: *web-api-healthy
+    restart: always
+    container_name: pyrus-preview-generator
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: preview-generator
+    networks:
+      - pyrus-backend
+
+  identity-server:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-identity-server:1.27.0
+    container_name: pyrus-identity-server
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: identity-server
+    networks:
+      - pyrus-backend
+
+  web-api:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-web-api:1.27.0
+    depends_on:
+      <<: *stores-healthy
+      identity-server:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/80 && printf 'GET /health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && read -r s <&3 && [[ $$s == *' 200 '* ]]"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10m
+    restart: always
+    container_name: pyrus-web-api
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: web-api
+    networks:
+      - pyrus-backend
+
+  hocus:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-hocus:1.27.0
+    depends_on: *web-api-healthy
+    restart: always
+    container_name: pyrus-hocus
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: hocus
+    networks:
+      - pyrus-backend
+
+  files:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-file-service:1.27.0
+    depends_on: *web-api-healthy
+    restart: always
+    container_name: pyrus-file-service
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: file-service
+    networks:
+      - pyrus-backend
+
+  bind:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-bind-service:1.27.0
+    restart: always
+    container_name: pyrus-bind-service
+    depends_on: *web-api-healthy
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: bind-service
+      HOST: bind
+    networks:
+      - pyrus-backend
+
+  mail-reader:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-mail-reader:1.27.0
+    depends_on: *web-api-healthy
+    restart: always
+    container_name: pyrus-mail-reader
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: mail-reader
+      MAILREADER_ENVIRONMENT: Production
+    networks:
+      - pyrus-backend
+
+  mail-sender:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-mail-sender:1.27.0
+    depends_on: *web-api-healthy
+    restart: always
+    container_name: pyrus-mail-sender
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: mail-sender
+    networks:
+      - pyrus-backend
+
+  async-worker:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-async-worker:1.27.0
+    depends_on: *web-api-healthy
+    restart: always
+    container_name: pyrus-async-worker
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: async-worker
+    networks:
+      - pyrus-backend
+
+  notification-service:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-notification-service:1.27.0
+    container_name: pyrus-notification-service
+    depends_on: *web-api-healthy
+    restart: always
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: notification-service
+    networks:
+      - pyrus-backend
+
+  pyrus-schedule-to-today:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-schedule-to-today:1.27.0
+    depends_on: *web-api-healthy
+    entrypoint: ["./wait-for-it.sh", "-s", "-t", "20", "pyrus-elastic:9200", "--", "dotnet", "Pyrus.ScheduleToToday.Core.dll"]
+    restart: always
+    container_name: pyrus-schedule-to-today
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: schedule-to-today
+    networks:
+      - pyrus-backend
+
+  familiar:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-familiar-service:1.27.0
+    restart: always
+    container_name: pyrus-familiar-service
+    depends_on: *web-api-healthy
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: familiar-service
+    networks:
+      - pyrus-backend
+
+  stt-service:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-stt-service:1.27.0
+    restart: always
+    container_name: pyrus-stt-service
+    depends_on: *web-api-healthy
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: stt-service
+    networks:
+      - pyrus-backend
+
+  minio:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/minio
+    restart: always
+    container_name: pyrus-minio
+    command: server --console-address ":9001" /data/
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in the .env file next to docker-compose.yml}
+    volumes:
+      - pyrus_minio_data:/data
+    networks:
+      - pyrus-backend
+
+  pyrus-setup:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-setup:1.27.0
+    profiles: ["all"]
+    pull_policy: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_started
+    container_name: pyrus-setup
+#    volumes:
+#      - /path/to/cert/you_want_to_check:/tmp/cert.crt
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: pyrus-setup
+    networks:
+      - pyrus-backend
+
+  elastic-console:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-elastic-console:1.27.0
+    profiles: ["all"]
+    pull_policy: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elastic:
+        condition: service_healthy
+    container_name: pyrus-elastic-console
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: pyrus-elastic-console
+    networks:
+      - pyrus-backend
+
+  goskey:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-goskey-service:1.27.0
+    pull_policy: always
+    depends_on: *web-api-healthy
+    container_name: pyrus-goskey-service
+    environment:
+      <<: *common-variables
+      APPLICATION_NAME: goskey-service
+    networks:
+      - pyrus-backend
+
+  clickhouse:
+    image: cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-clickhouse:1.27.0
+    restart: always
+    pull_policy: always
+    container_name: pyrus-clickhouse
+    environment:
+      <<: *common-variables
+    volumes:
+      - pyrus_clickhouse_data:/var/lib/clickhouse
+      - pyrus_clickhouse_logs:/var/log/clickhouse-server
+    networks:
+      - pyrus-backend
+
+volumes:
+  pyrus_pgsql_data_16:
+  pyrus_elastic_data:
+  pyrus_logs_pgsql_data_16:
+  pyrus_minio_data:
+  pyrus_nats_data:
+  pyrus_pgsql_logs:
+  pyrus_logs_pgsql_logs:
+  pyrus_clickhouse_data:
+  pyrus_clickhouse_logs:
+
+networks:
+  pyrus-backend:
+    name: pyrus-backend
+    driver: bridge

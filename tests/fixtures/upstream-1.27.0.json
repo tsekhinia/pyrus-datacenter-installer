@@ -1,0 +1,657 @@
+{
+  "name": "pyrus",
+  "networks": {
+    "pyrus-backend": {
+      "name": "pyrus-backend",
+      "driver": "bridge",
+      "ipam": {}
+    }
+  },
+  "services": {
+    "async-worker": {
+      "command": null,
+      "container_name": "pyrus-async-worker",
+      "depends_on": {
+        "web-api": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "async-worker",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-async-worker:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always"
+    },
+    "bind": {
+      "command": null,
+      "container_name": "pyrus-bind-service",
+      "depends_on": {
+        "web-api": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "bind-service",
+        "HOST": "bind",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-bind-service:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always"
+    },
+    "clickhouse": {
+      "command": null,
+      "container_name": "pyrus-clickhouse",
+      "entrypoint": null,
+      "environment": {
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-clickhouse:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "pull_policy": "always",
+      "restart": "always",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "pyrus_clickhouse_data",
+          "target": "/var/lib/clickhouse",
+          "volume": {}
+        },
+        {
+          "type": "volume",
+          "source": "pyrus_clickhouse_logs",
+          "target": "/var/log/clickhouse-server",
+          "volume": {}
+        }
+      ]
+    },
+    "elastic": {
+      "command": null,
+      "container_name": "pyrus-elastic",
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "elastic",
+        "ES_JAVA_OPTS": "-Xms2g -Xmx2g -Dlog4j.formatMsgNoLookups=true",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/elastic-selfhosted:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "pyrus_elastic_data",
+          "target": "/usr/share/elasticsearch/data",
+          "volume": {}
+        }
+      ]
+    },
+    "elastic-console": {
+      "profiles": [
+        "all"
+      ],
+      "command": null,
+      "container_name": "pyrus-elastic-console",
+      "depends_on": {
+        "elastic": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "pyrus-elastic-console",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-elastic-console:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "pull_policy": "always"
+    },
+    "familiar": {
+      "command": null,
+      "container_name": "pyrus-familiar-service",
+      "depends_on": {
+        "web-api": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "familiar-service",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-familiar-service:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always"
+    },
+    "files": {
+      "command": null,
+      "container_name": "pyrus-file-service",
+      "depends_on": {
+        "web-api": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "file-service",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-file-service:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always"
+    },
+    "goskey": {
+      "command": null,
+      "container_name": "pyrus-goskey-service",
+      "depends_on": {
+        "web-api": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "goskey-service",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-goskey-service:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "pull_policy": "always"
+    },
+    "hocus": {
+      "command": null,
+      "container_name": "pyrus-hocus",
+      "depends_on": {
+        "web-api": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "hocus",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-hocus:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always"
+    },
+    "identity-server": {
+      "command": null,
+      "container_name": "pyrus-identity-server",
+      "depends_on": {
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "identity-server",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-identity-server:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always"
+    },
+    "logs": {
+      "command": null,
+      "container_name": "pyrus-logs-pgsql",
+      "entrypoint": null,
+      "hostname": "pyrus-logs-pgsql",
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-logs-pgsql-16:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "pyrus_logs_pgsql_data_16",
+          "target": "/var/lib/postgresql/data",
+          "volume": {}
+        },
+        {
+          "type": "volume",
+          "source": "pyrus_logs_pgsql_logs",
+          "target": "/var/log/postgresql",
+          "volume": {}
+        }
+      ]
+    },
+    "mail-reader": {
+      "command": null,
+      "container_name": "pyrus-mail-reader",
+      "depends_on": {
+        "web-api": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "mail-reader",
+        "MAILREADER_ENVIRONMENT": "Production",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-mail-reader:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always"
+    },
+    "mail-sender": {
+      "command": null,
+      "container_name": "pyrus-mail-sender",
+      "depends_on": {
+        "web-api": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "mail-sender",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-mail-sender:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always"
+    },
+    "minio": {
+      "command": [
+        "server",
+        "--console-address",
+        ":9001",
+        "/data/"
+      ],
+      "container_name": "pyrus-minio",
+      "entrypoint": null,
+      "environment": {
+        "MINIO_ROOT_PASSWORD": "fixture-not-a-secret",
+        "MINIO_ROOT_USER": "admin"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/minio",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "pyrus_minio_data",
+          "target": "/data",
+          "volume": {}
+        }
+      ]
+    },
+    "nats": {
+      "command": [
+        "-c",
+        "/etc/nats/nats.conf"
+      ],
+      "container_name": "pyrus-nats",
+      "entrypoint": null,
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-nats:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "pyrus_nats_data",
+          "target": "/data",
+          "volume": {}
+        }
+      ]
+    },
+    "nginx": {
+      "command": null,
+      "container_name": "pyrus-nginx",
+      "depends_on": {
+        "files": {
+          "condition": "service_started",
+          "required": true
+        },
+        "web-api": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-nginx:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 80,
+          "published": "80",
+          "protocol": "tcp"
+        },
+        {
+          "mode": "ingress",
+          "target": 443,
+          "published": "443",
+          "protocol": "tcp"
+        }
+      ],
+      "restart": "always"
+    },
+    "notification-service": {
+      "command": null,
+      "container_name": "pyrus-notification-service",
+      "depends_on": {
+        "web-api": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "notification-service",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-notification-service:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always"
+    },
+    "postgres": {
+      "command": null,
+      "container_name": "pyrus-postgresql",
+      "entrypoint": null,
+      "hostname": "pyrus-postgresql",
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-pgsql-16:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "pyrus_pgsql_data_16",
+          "target": "/var/lib/postgresql/data",
+          "volume": {}
+        },
+        {
+          "type": "volume",
+          "source": "pyrus_pgsql_logs",
+          "target": "/var/log/postgresql",
+          "volume": {}
+        }
+      ]
+    },
+    "preview": {
+      "command": null,
+      "container_name": "pyrus-preview-generator",
+      "depends_on": {
+        "web-api": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "preview-generator",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-preview-generator:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always"
+    },
+    "pyrus-schedule-to-today": {
+      "command": null,
+      "container_name": "pyrus-schedule-to-today",
+      "depends_on": {
+        "web-api": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": [
+        "./wait-for-it.sh",
+        "-s",
+        "-t",
+        "20",
+        "pyrus-elastic:9200",
+        "--",
+        "dotnet",
+        "Pyrus.ScheduleToToday.Core.dll"
+      ],
+      "environment": {
+        "APPLICATION_NAME": "schedule-to-today",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-schedule-to-today:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always"
+    },
+    "pyrus-setup": {
+      "profiles": [
+        "all"
+      ],
+      "command": null,
+      "container_name": "pyrus-setup",
+      "depends_on": {
+        "clickhouse": {
+          "condition": "service_started",
+          "required": true
+        },
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "pyrus-setup",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-setup:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "pull_policy": "always"
+    },
+    "stt-service": {
+      "command": null,
+      "container_name": "pyrus-stt-service",
+      "depends_on": {
+        "web-api": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "stt-service",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-stt-service:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always"
+    },
+    "web-api": {
+      "command": null,
+      "container_name": "pyrus-web-api",
+      "depends_on": {
+        "elastic": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "identity-server": {
+          "condition": "service_started",
+          "required": true
+        },
+        "logs": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "nats": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "APPLICATION_NAME": "web-api",
+        "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+        "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+        "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "bash",
+          "-c",
+          "exec 3<>/dev/tcp/127.0.0.1/80 && printf 'GET /health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && read -r s <&3 && [[ $$s == *' 200 '* ]]"
+        ],
+        "timeout": "5s",
+        "interval": "10s",
+        "retries": 5,
+        "start_period": "10m0s"
+      },
+      "image": "cr.yandex/crpn0l4dp22f8mv5ln18/pyrus-web-api:1.27.0",
+      "networks": {
+        "pyrus-backend": null
+      },
+      "restart": "always"
+    }
+  },
+  "volumes": {
+    "pyrus_clickhouse_data": {
+      "name": "pyrus_pyrus_clickhouse_data"
+    },
+    "pyrus_clickhouse_logs": {
+      "name": "pyrus_pyrus_clickhouse_logs"
+    },
+    "pyrus_elastic_data": {
+      "name": "pyrus_pyrus_elastic_data"
+    },
+    "pyrus_logs_pgsql_data_16": {
+      "name": "pyrus_pyrus_logs_pgsql_data_16"
+    },
+    "pyrus_logs_pgsql_logs": {
+      "name": "pyrus_pyrus_logs_pgsql_logs"
+    },
+    "pyrus_minio_data": {
+      "name": "pyrus_pyrus_minio_data"
+    },
+    "pyrus_nats_data": {
+      "name": "pyrus_pyrus_nats_data"
+    },
+    "pyrus_pgsql_data_16": {
+      "name": "pyrus_pyrus_pgsql_data_16"
+    },
+    "pyrus_pgsql_logs": {
+      "name": "pyrus_pyrus_pgsql_logs"
+    }
+  },
+  "x-common-variables": {
+    "MAIN_CONN_STRING": "{\n    \"ConnectionName\": \"default\",\n    \"ConnectionString\": \"Server=pyrus-postgresql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrusdb;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"Data\"\n}\n",
+    "PRIVATE_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"privateLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PrivateLogs\"\n}\n",
+    "PUBLIC_LOGS_CONN_STRING": "{\n    \"ConnectionName\": \"publicLogs\",\n    \"ConnectionString\": \"Server=pyrus-logs-pgsql;Port=5432;Username=pyrusadm;Password=pyruspwd;Database=pyrus_logs;\",\n    \"DatabaseEngine\": \"Postgres\",\n    \"DatabaseType\": \"PublicLogs\"\n}\n"
+  },
+  "x-stores-healthy": {
+    "elastic": {
+      "condition": "service_healthy"
+    },
+    "logs": {
+      "condition": "service_healthy"
+    },
+    "nats": {
+      "condition": "service_healthy"
+    },
+    "postgres": {
+      "condition": "service_healthy"
+    }
+  },
+  "x-web-api-healthy": {
+    "web-api": {
+      "condition": "service_healthy"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "PYRUS_HOSTNAME": "pyrus.example.org",
+  "ADMIN_EMAIL": "admin@example.org",
+  "ADMIN_PASSWORD": "REPLACE_WITH_STRONG_PASSWORD",
+  "LICENSE": "REPLACE_WITH_PYRUS_LICENSE",
+  "TLS_CERT": "/root/pyrus-fullchain.pem",
+  "TLS_KEY": "/root/pyrus-private.key",
+  "TLS_CA": "",
+  "STORAGE_TYPE": "minio",
+  "S3_BUCKET": "pyrus",
+  "S3_STORAGE_TYPE": "MinIo",
+  "S3_FORCE_PATH_STYLE": "true",
+  "SMTP_SERVER": "smtp.example.org",
+  "SMTP_PORT": "465",
+  "SMTP_SSL": "true",
+  "SMTP_AUTH": "true",
+  "SMTP_USERNAME": "notifier@example.org",
+  "SMTP_PASSWORD": "REPLACE_WITH_MAIL_PASSWORD",
+  "SMTP_NOTIFIER": "notifier@example.org",
+  "SMTP_RECOVERY": "notifier@example.org"
+}

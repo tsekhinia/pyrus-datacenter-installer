@@ -1,0 +1,20 @@
+name: Installer checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash syntax and ShellCheck
+        run: |
+          bash -n install.sh
+          for script in lib/*.sh; do bash -n "$script"; done
+          shellcheck -x install.sh lib/*.sh
+      - name: Python syntax and offline installation scenarios
+        run: |
+          python3 -m py_compile scripts/*.py tests/*.py
+          COMPOSE_BINARY="$(docker info --format '{{range .ClientInfo.Plugins}}{{if eq .Name "compose"}}{{.Path}}{{end}}{{end}}')" python3 -m unittest discover -s tests -v
