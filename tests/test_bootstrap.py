@@ -16,7 +16,8 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-COMMIT = '7dd2cb9c13ed50cc449a6bb416f8860ce5db27a0'
+COMMIT = next(line.split('=', 1)[1] for line in (ROOT / 'bootstrap.sh').read_text().splitlines()
+              if line.startswith('readonly INSTALLER_COMMIT='))
 
 
 class BootstrapTests(unittest.TestCase):

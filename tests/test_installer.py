@@ -13,6 +13,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+from test_parameters import terminal_run
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -154,6 +155,48 @@ main "$@"
         return subprocess.run(['bash','-c',harness,'test','--install-dir',str(self.install),*args],cwd=ROOT,env=self.env | (extra_env or {}),text=True,capture_output=True,timeout=50)
 
     def calls(self): return [json.loads(x) for x in self.call_log.read_text().splitlines()]
+
+    def run_menu_flow(self, *args, exchanges=(), extra_env=None):
+        harness='source ./install.sh; require_root() { :; }; main "$@"'
+        return terminal_run(['bash', '-c', harness, 'test', '--install-dir', str(self.install), *args],
+                            self.env | (extra_env or {}), exchanges)
+
+    def test_menu_and_automatic_entry_use_completed_installation(self):
+        r=self.run_flow('--config',str(self.input)); self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+        state=self.install/'.installer'
+        before_files={p:p.read_bytes() for p in [state/'config.json',state/'secrets.json',self.install/'docker-compose.yml']}
+        log_files=set(state.glob('*.log'))
+        for args in [('--menu',), ()]:
+            before=len(self.calls())
+            code,output=self.run_menu_flow(*args,exchanges=[('Выберите пункт: ','0')])
+            self.assertEqual(code,0,output)
+            self.assertIn('Конфигурация Pyrus',output)
+            self.assertFalse(any('--setup' in c or '--create' in c or 'restart' in c or 'up' in c or 'pull' in c for c in self.calls()[before:]))
+            self.assertEqual(set(state.glob('*.log')),log_files)
+        self.assertEqual(before_files,{p:p.read_bytes() for p in before_files})
+
+    def test_menu_rejects_incomplete_installation_and_conflicting_modes(self):
+        r=self.run_flow('--config',str(self.input)); self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+        (self.install/'.installer/complete.done').unlink()
+        before=len(self.calls())
+        code,output=self.run_menu_flow('--menu')
+        self.assertNotEqual(code,0); self.assertIn('use --resume first',output)
+        self.assertEqual(len(self.calls()),before)
+        for args in [('--menu','--plan'), ('--menu','--config',str(self.input))]:
+            r=self.run_flow(*args)
+            self.assertNotEqual(r.returncode,0)
+        self.assertEqual(len(self.calls()),before)
+
+    def test_menu_rejects_redirected_output_and_changed_compose(self):
+        r=self.run_flow('--config',str(self.input)); self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+        before=len(self.calls())
+        r=self.run_flow('--menu')
+        self.assertNotEqual(r.returncode,0); self.assertIn('interactive terminal',r.stderr)
+        self.assertEqual(len(self.calls()),before)
+        with (self.install/'docker-compose.yml').open('a') as f: f.write(' ')
+        code,output=self.run_menu_flow('--menu')
+        self.assertNotEqual(code,0); self.assertIn('Managed Compose changed',output)
+        self.assertFalse(any('--setup' in c for c in self.calls()[before:]))
     def mutations(self,calls):
         return [c for c in calls if any(x in c for x in ['pull','up','exec','--create','--configure-s3','--setup'])]
 

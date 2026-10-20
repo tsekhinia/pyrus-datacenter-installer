@@ -52,8 +52,24 @@ if a[0]=='compose':
             if os.environ.get('MOCK_FAIL_CREATE'): print('simulated create failure'); sys.exit(8)
             state['schema']=True; state_file.write_text(json.dumps(state))
         if '--setup' in x and '101301' in x and os.environ.get('MOCK_FAIL_SMTP'): sys.exit(9)
+        if '--setup' in x:
+            parameters=state.setdefault('parameters',{})
+            if '-ls' in x:
+                if os.environ.get('MOCK_FAIL_LIST'): print('hidden-error-secret',file=sys.stderr); sys.exit(9)
+                if '-id' in x:
+                    identifier=x[x.index('-id')+1]
+                    print(identifier + ' = ' + parameters.get(identifier,'<unset>'))
+                else:
+                    print(json.dumps(parameters))
+                sys.exit(0)
+            if '-v' in x:
+                if os.environ.get('MOCK_FAIL_SET'): print('hidden-error-secret'); sys.exit(9)
+                parameters[x[x.index('-id')+1]]=x[x.index('-v')+1]
+                state_file.write_text(json.dumps(state))
         # Deliberately echo arguments to prove the redaction filter works.
         print(' '.join(x))
+    elif cmd=='restart':
+        if os.environ.get('MOCK_FAIL_RESTART'): sys.exit(9)
     elif cmd not in ['pull','up']: print('Unhandled compose command',cmd,file=sys.stderr); sys.exit(3)
     sys.exit(0)
 print('Unhandled fake docker command',a,file=sys.stderr); sys.exit(3)

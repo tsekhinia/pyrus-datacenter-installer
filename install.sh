@@ -5,14 +5,14 @@ set -Eeuo pipefail
 umask 077
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 export ROOT_DIR
-for module in common config preflight system docker pyrus storage smtp healthcheck; do
+for module in common config preflight system docker pyrus storage smtp healthcheck parameters; do
     # shellcheck source=/dev/null
     source "$ROOT_DIR/lib/$module.sh"
 done
 trap 'on_error "$?" "$LINENO"' ERR
 
 main() {
-    local mode=install input='' arg
+    local mode=install input='' arg mode_count=0
     INSTALL_DIR=/opt/pyrus
     ACCEPT_LOW_RESOURCES=false
     RETRY_STEP=
@@ -20,10 +20,11 @@ main() {
         arg=$1; shift
         case "$arg" in
             --help|-h) usage; return ;;
-            --preflight) mode=preflight ;;
-            --plan) mode=plan ;;
-            --check) mode=check ;;
-            --resume) mode=resume ;;
+            --preflight) mode=preflight; mode_count=$((mode_count + 1)) ;;
+            --plan) mode=plan; mode_count=$((mode_count + 1)) ;;
+            --check) mode=check; mode_count=$((mode_count + 1)) ;;
+            --resume) mode=resume; mode_count=$((mode_count + 1)) ;;
+            --menu) mode=menu; mode_count=$((mode_count + 1)) ;;
             --config) (($#)) || fatal 'Missing --config value'; input=$1; shift ;;
             --install-dir) (($#)) || fatal 'Missing directory'; INSTALL_DIR=$1; shift ;;
             --accept-low-resources) ACCEPT_LOW_RESOURCES=true ;;
@@ -31,10 +32,19 @@ main() {
             *) fatal "Unknown argument: $arg" ;;
         esac
     done
+    ((mode_count <= 1)) || fatal 'Choose only one mode: --preflight, --plan, --check, --resume or --menu'
     [[ -z "$RETRY_STEP" || "$mode" == resume ]] || fatal '--retry-step requires --resume'
     [[ "$RETRY_STEP" =~ ^(db_init|db_start|elastic_init|storage)?$ ]] || fatal 'Unsupported retry step'
-    require_commands python3 curl openssl sha256sum timeout flock ss getent
+    require_commands python3 sha256sum timeout flock
     validate_install_dir
+    if ((mode_count == 0)) && [[ -z "$input" && -d "$STATE_DIR" ]]; then mode=menu; fi
+    if [[ "$mode" == menu ]]; then
+        [[ -z "$input" ]] || fatal '--menu uses the running Pyrus configuration; do not pass --config'
+        require_root
+        manage_parameters
+        return
+    fi
+    require_commands curl openssl ss getent
     if [[ "$mode" == preflight ]]; then run_preflight false; return; fi
     require_root
     if [[ "$mode" == resume || "$mode" == check ]]; then
@@ -45,7 +55,7 @@ main() {
         elif [[ "$mode" == check ]]; then fatal 'Compose has not been prepared yet'; fi
         if [[ "$mode" == check ]]; then run_healthcheck; return; fi
     else
-        [[ ! -e "$INSTALL_DIR/.installer" ]] || fatal 'Installation exists; use --resume or --check'
+        [[ ! -e "$INSTALL_DIR/.installer" ]] || fatal 'Installation exists; use --menu, --resume or --check'
         if [[ -n "$input" ]]; then load_config "$input"; else collect_configuration; fi
         validate_config
     fi

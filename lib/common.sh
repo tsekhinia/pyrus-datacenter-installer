@@ -8,9 +8,11 @@ Usage: sudo bash install.sh [options]
   --install-dir /opt/pyrus     Installation directory (also for resume/check)
   --resume                    Continue the saved installation; never upgrades Pyrus
   --check                     Verify existing installation
+  --menu                      View/change live Pyrus configuration interactively
   --accept-low-resources      Permit below recommended CPU/RAM/disk for a test
   --retry-step STEP           With --resume, explicitly retry interrupted
                               db_init, db_start, elastic_init, storage after review
+With no mode, an existing installation opens the configuration menu.
 EOF
 }
 info() { printf '[INFO] %s\n' "$*"; }
