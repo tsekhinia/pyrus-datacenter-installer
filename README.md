@@ -32,27 +32,71 @@
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y curl openssl python3 iproute2 util-linux coreutils procps ca-certificates git
+sudo apt-get install -y curl openssl python3 iproute2 util-linux coreutils procps ca-certificates wget
 docker version
 docker compose version
 ```
 
 ## 2. Запуск
 
-Репозиторий приватный: серверу нужен доступ к вашему GitHub (например, уже
-настроенный SSH-ключ). Другой вариант — скачать ZIP через GitHub на свой
-компьютер, передать на сервер и распаковать. Перед выполнением под root
-просмотрите скачанный код.
+### Одной командой
+
+В терминале сервера Ubuntu выполните:
 
 ```bash
-git clone git@github.com:tsekhinia/pyrus-datacenter-installer.git
+wget -O pyrus-bootstrap.sh https://raw.githubusercontent.com/tsekhinia/pyrus-datacenter-installer/main/bootstrap.sh && sudo bash pyrus-bootstrap.sh
+```
+
+Если работаете под root, `sudo` можно опустить. Запустится интерактивный мастер:
+он соберёт параметры, покажет план и запросит `yes` перед установкой.
+Docker, Compose и остальные зависимости из раздела 1 должны быть установлены.
+
+Вариант с `curl`:
+
+```bash
+curl -fSL https://raw.githubusercontent.com/tsekhinia/pyrus-datacenter-installer/main/bootstrap.sh -o pyrus-bootstrap.sh && sudo bash pyrus-bootstrap.sh
+```
+
+Git, SSH-ключ и авторизация GitHub не нужны: репозиторий публичный. Загрузчик
+скачивает полный комплект модулей по HTTPS, сверяет SHA-256 архива и запускает
+`install.sh`. Закреплён коммит `7dd2cb9c13ed50cc449a6bb416f8860ce5db27a0`;
+новый код из `main` сам по себе не меняет скачиваемую версию установщика.
+Временный комплект удаляется после завершения; состояние Pyrus остаётся в
+каталоге установки. Все параметры передаются основному скрипту:
+
+```bash
+# Проверки сервера без установки:
+sudo bash pyrus-bootstrap.sh --preflight
+
+# На небольшой тестовой VM:
+sudo bash pyrus-bootstrap.sh --accept-low-resources
+
+# Продолжить после ошибки или проверить установленный Pyrus:
+sudo bash pyrus-bootstrap.sh --resume
+sudo bash pyrus-bootstrap.sh --check
+```
+
+В интерактивном терминале поддерживается и запуск без сохранения загрузчика:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/tsekhinia/pyrus-datacenter-installer/main/bootstrap.sh | sudo bash
+```
+
+Для параметров при таком запуске используйте `sudo bash -s -- --preflight`
+или `sudo bash -s -- --resume`. Загрузчик подключает ввод мастера к терминалу,
+чтобы работали скрытый ввод паролей и подтверждение `yes`. Основной вариант
+с `wget -O … && sudo bash …` сначала полностью скачивает загрузчик и проверяет
+успех скачивания.
+
+### Запуск из исходников
+
+Для просмотра кода, работы с JSON-шаблоном или разработки можно скачать
+репозиторий отдельно (в этом случае нужен Git):
+
+```bash
+git clone https://github.com/tsekhinia/pyrus-datacenter-installer.git
 cd pyrus-datacenter-installer
-
-# Проверки сервера без установки. На небольшой тестовой VM добавьте
-# --accept-low-resources к этой и последующим командам.
 sudo bash install.sh --preflight
-
-# Интерактивный мастер покажет план и запросит yes перед изменениями.
 sudo bash install.sh
 ```
 
@@ -222,9 +266,8 @@ c2183ea98e4a6341ae5b492df32677190a71e6ac75eaa8a58d06ac1bfc37fb1d
 ## Разработка и проверки
 
 ```bash
-bash -n install.sh
-for script in lib/*.sh; do bash -n "$script"; done
-shellcheck -x install.sh lib/*.sh
+for script in install.sh bootstrap.sh lib/*.sh; do bash -n "$script"; done
+shellcheck -x install.sh bootstrap.sh lib/*.sh
 python3 -m py_compile scripts/*.py tests/*.py
 python3 -m unittest discover -s tests -v
 
