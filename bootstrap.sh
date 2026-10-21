@@ -4,8 +4,8 @@ set +x
 set -Eeuo pipefail
 umask 077
 
-readonly INSTALLER_COMMIT=7fed725ed7b0785fbb106a793ebeabc22ba83d2e
-readonly ARCHIVE_SHA256=db2be50e74f254ce5030772626f189870d4a0d1874a2879b8e3e67e712397dc8
+readonly INSTALLER_COMMIT=603c6ec9caae384f92f145c5cf5e0a5f5097b580
+readonly ARCHIVE_SHA256=79d296f634d9dc4db585b20e42147be208af1cc116d6100b0e0a27fd85c535dd
 readonly ARCHIVE_URL="https://codeload.github.com/tsekhinia/pyrus-datacenter-installer/tar.gz/$INSTALLER_COMMIT"
 
 bootstrap_error() { printf '[ERROR] %s\n' "$*" >&2; exit 1; }
