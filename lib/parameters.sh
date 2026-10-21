@@ -59,6 +59,10 @@ edit_parameter() {
     [[ -n "$value" ]] || return 0
     if ! printf '%s' "$value" | python3 "$ROOT_DIR/scripts/parameters.py" validate "$id"; then return 0; fi
     if [[ "$id" == 100001 ]]; then
+        if [[ -z ${TLS_CERT:-} ]]; then
+            warn 'TLS-сертификат не найден. Для изменения домена укажите --menu --tls-cert /path/fullchain.pem.'
+            return 0
+        fi
         require_commands openssl
         if ! openssl verify -partial_chain -trusted "$TLS_CERT" -verify_hostname "$value" "$TLS_CERT" >/dev/null 2>&1; then
             warn 'Установленный TLS-сертификат не покрывает новый домен или недействителен. Сначала обновите сертификат.'
@@ -72,14 +76,22 @@ edit_parameter() {
     # Suppress *all* CLI output, including on failure and for unknown parameters.
     # Values stay out of shell history, logs and saved installer secrets.
     if setup --setup -id "$id" -v "$value" >/dev/null 2>&1; then
-        if ! printf '%s' "$value" | python3 "$ROOT_DIR/scripts/parameters.py" sync "$id" "$STATE_DIR/config.json"; then
-            warn 'Параметр записан в Pyrus, но снимок установщика не обновлён. Проверьте config.json перед --check.'
+        if [[ ${PARAMETERS_EXISTING:-false} != true ]]; then
+            if ! printf '%s' "$value" | python3 "$ROOT_DIR/scripts/parameters.py" sync "$id" "$STATE_DIR/config.json"; then
+                warn 'Параметр записан в Pyrus, но снимок установщика не обновлён. Проверьте config.json перед --check.'
+            fi
         fi
         : >"$STATE_DIR/parameters-restart.required"
         info 'Параметр сохранён. Для применения может потребоваться перезапуск сервисов (пункт 5).'
     else
         warn 'Команда записи завершилась ошибкой. Проверьте текущее значение перед повтором.'
     fi
+}
+
+restart_parameter_services() {
+    if [[ ${PARAMETERS_EXISTING:-false} == true ]]; then
+        python3 "$ROOT_DIR/scripts/existing.py" restart "$EXISTING_TARGET"
+    else dc restart --no-deps "$@"; fi
 }
 
 parameters_menu() {
@@ -116,10 +128,10 @@ EOF
                 ;;
             5)
                 if confirm 'Перезапустить сервисы приложения? Pyrus будет временно недоступен. Введите yes'; then
-                    if dc restart --no-deps "${application_services[@]}" >/dev/null 2>&1; then
+                    if restart_parameter_services "${application_services[@]}" >/dev/null 2>&1; then
                         rm -f -- "$STATE_DIR/parameters-restart.required"
-                        info 'Сервисы перезапущены. Проверьте их командой --check и выполните вход в Pyrus.'
-                    else warn 'Перезапуск завершился ошибкой. Проверьте состояние контейнеров командой --check.'; fi
+                        info 'Сервисы перезапущены. Проверьте состояние контейнеров и выполните вход в Pyrus.'
+                    else warn 'Перезапуск завершился ошибкой. Проверьте состояние контейнеров.'; fi
                 fi
                 ;;
             0) return 0 ;;
@@ -131,7 +143,11 @@ EOF
 manage_parameters() {
     [[ -t 0 && -t 1 ]] || fatal '--menu requires an interactive terminal for input and output'
     require_commands stty
-    [[ -d "$STATE_DIR" && ! -L "$STATE_DIR" ]] || fatal 'No saved installation; run the installer first'
+    if [[ ! -e "$STATE_DIR" && ! -L "$STATE_DIR" ]]; then manage_existing_parameters; return; fi
+    [[ -d "$STATE_DIR" && ! -L "$STATE_DIR" ]] || fatal 'Invalid installer state directory'
+    [[ -z "$MENU_PROJECT$MENU_TLS_CERT$MENU_SETUP_IMAGE" ]] || fatal 'Managed installation: use --install-dir with --menu; existing-deployment options are not needed'
+    PARAMETERS_EXISTING=false
+    require_commands sha256sum
     python3 "$ROOT_DIR/scripts/config.py" check-private "$STATE_DIR"
     acquire_lock
     load_saved_config
@@ -143,3 +159,40 @@ manage_parameters() {
     database_has_schema || fatal 'Pyrus database has no application tables'
     parameters_menu
 }
+
+manage_existing_parameters() (
+    # A subshell keeps temporary metadata and overrides out of installation mode.
+    trap 'exit "$?"' ERR
+    require_commands docker mktemp
+    PARAMETERS_EXISTING=true
+    local endpoint choice count lock_file
+    [[ -z ${DOCKER_HOST:-} || "$DOCKER_HOST" == unix://* ]] || fatal 'Only a local Docker daemon is supported'
+    if endpoint=$(timeout 15 docker context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null); then
+        [[ "$endpoint" == unix://* || ( -n ${DOCKER_HOST:-} && -z ${DOCKER_CONTEXT:-} ) ]] || fatal 'Docker context must use a local Unix socket'
+    else
+        [[ -z ${DOCKER_CONTEXT:-} || "$DOCKER_CONTEXT" == default ]] || fatal 'Cannot verify the selected Docker context'
+    fi
+    timeout 15 docker info >/dev/null 2>&1 || fatal 'Cannot connect to local Docker daemon'
+    EXISTING_MENU_DIR=$(mktemp -d "${TMPDIR:-/tmp}/pyrus-menu.XXXXXXXX")
+    trap 'rm -rf -- "$EXISTING_MENU_DIR"' EXIT
+    STATE_DIR=$EXISTING_MENU_DIR
+    EXISTING_TARGET="$STATE_DIR/target.json"
+    python3 "$ROOT_DIR/scripts/existing.py" discover "$STATE_DIR/projects.json" "$MENU_PROJECT"
+    count=$(python3 "$ROOT_DIR/scripts/existing.py" count "$STATE_DIR/projects.json")
+    ((count > 0)) || fatal 'No existing Pyrus containers found. Check docker ps -a; --menu does not install Pyrus.'
+    python3 "$ROOT_DIR/scripts/existing.py" list "$STATE_DIR/projects.json"
+    choice=1
+    if ((count > 1)); then
+        read -r -p 'Номер установки (0 — выход): ' choice || return 0
+        [[ "$choice" != 0 ]] || return 0
+    fi
+    python3 "$ROOT_DIR/scripts/existing.py" select "$STATE_DIR/projects.json" "$choice" "$EXISTING_TARGET" "$MENU_SETUP_IMAGE" "$MENU_TLS_CERT"
+    lock_file=$(python3 "$ROOT_DIR/scripts/existing.py" lock "$EXISTING_TARGET" "${PYRUS_MENU_RUNTIME_DIR:-/run/pyrus-parameters}")
+    exec 9>"$lock_file"
+    flock -n 9 || fatal 'Another parameter menu is using this Pyrus installation'
+    TLS_CERT=$(python3 "$ROOT_DIR/scripts/existing.py" field "$EXISTING_TARGET" certificate)
+    RUNTIME_SERVICES=()
+    info 'Подключение к существующему Pyrus через Docker; docker-compose и docker compose для этого режима не требуются.'
+    info 'Исходные Compose-файлы и версия Pyrus сохраняются. Секреты читаются из работающего контейнера только на время команды.'
+    parameters_menu
+)

@@ -9,6 +9,9 @@ Usage: sudo bash install.sh [options]
   --resume                    Continue the saved installation; never upgrades Pyrus
   --check                     Verify existing installation
   --menu                      View/change live Pyrus configuration interactively
+  --project NAME              With --menu, choose an existing Compose project
+  --tls-cert /path/cert.pem    With --menu, certificate for an existing deployment
+  --setup-image IMAGE         With --menu, use a reviewed local pyrus-setup image
   --accept-low-resources      Permit below recommended CPU/RAM/disk for a test
   --retry-step STEP           With --resume, explicitly retry interrupted
                               db_init, db_start, elastic_init, storage after review

@@ -16,6 +16,10 @@ main() {
     INSTALL_DIR=/opt/pyrus
     ACCEPT_LOW_RESOURCES=false
     RETRY_STEP=
+    MENU_PROJECT=
+    MENU_TLS_CERT=
+    MENU_SETUP_IMAGE=
+    PARAMETERS_EXISTING=false
     while (($#)); do
         arg=$1; shift
         case "$arg" in
@@ -25,6 +29,9 @@ main() {
             --check) mode=check; mode_count=$((mode_count + 1)) ;;
             --resume) mode=resume; mode_count=$((mode_count + 1)) ;;
             --menu) mode=menu; mode_count=$((mode_count + 1)) ;;
+            --project) (($#)) || fatal 'Missing project name'; MENU_PROJECT=$1; shift ;;
+            --tls-cert) (($#)) || fatal 'Missing certificate path'; MENU_TLS_CERT=$1; shift ;;
+            --setup-image) (($#)) || fatal 'Missing local setup image'; MENU_SETUP_IMAGE=$1; shift ;;
             --config) (($#)) || fatal 'Missing --config value'; input=$1; shift ;;
             --install-dir) (($#)) || fatal 'Missing directory'; INSTALL_DIR=$1; shift ;;
             --accept-low-resources) ACCEPT_LOW_RESOURCES=true ;;
@@ -32,10 +39,12 @@ main() {
             *) fatal "Unknown argument: $arg" ;;
         esac
     done
+    if ((mode_count == 0)) && [[ -n "$MENU_PROJECT$MENU_TLS_CERT$MENU_SETUP_IMAGE" ]]; then mode=menu; fi
+    [[ "$mode" == menu || -z "$MENU_PROJECT$MENU_TLS_CERT$MENU_SETUP_IMAGE" ]] || fatal '--project, --tls-cert and --setup-image require --menu'
     ((mode_count <= 1)) || fatal 'Choose only one mode: --preflight, --plan, --check, --resume or --menu'
     [[ -z "$RETRY_STEP" || "$mode" == resume ]] || fatal '--retry-step requires --resume'
     [[ "$RETRY_STEP" =~ ^(db_init|db_start|elastic_init|storage)?$ ]] || fatal 'Unsupported retry step'
-    require_commands python3 sha256sum timeout flock
+    require_commands python3 timeout flock
     validate_install_dir
     if ((mode_count == 0)) && [[ -z "$input" && -d "$STATE_DIR" ]]; then mode=menu; fi
     if [[ "$mode" == menu ]]; then
@@ -44,7 +53,7 @@ main() {
         manage_parameters
         return
     fi
-    require_commands curl openssl ss getent
+    require_commands curl openssl sha256sum ss getent
     if [[ "$mode" == preflight ]]; then run_preflight false; return; fi
     require_root
     if [[ "$mode" == resume || "$mode" == check ]]; then
