@@ -61,7 +61,7 @@ def discover(project_filter=''):
     result = []
     for project, containers in sorted(projects.items()):
         anchors = [c for c in containers if service(c) == 'web-api' and
-                   re.search(r'(^|/)pyrus-web-api(?=[:@]|$)', c['Config'].get('Image', ''))]
+                   re.search(r'(^|/)(?:dev-)?pyrus-web-api(?=[:@]|$)', c['Config'].get('Image', ''))]
         if not anchors:
             continue
         # Do not persist Config.Env; it contains the live database credentials.
@@ -83,20 +83,23 @@ def setup_image(anchor, explicit):
     if '@' in reference or ':' not in reference.rsplit('/', 1)[-1]:
         references = image(anchor['Image']).get('RepoTags') or []
     candidates = set()
+    expected_variants = set()
     for reference in references:
-        match = re.fullmatch(r'(.*\b)pyrus-web-api:([0-9]+\.[0-9]+\.[0-9]+)', reference)
+        match = re.fullmatch(r'(.*/)?(dev-)?pyrus-web-api:([0-9]+\.[0-9]+\.[0-9]+)', reference)
         if match:
-            candidates.add(match[1] + 'pyrus-setup:' + match[2])
+            prefix, variant, version = match.groups()
+            variant = variant or ''
+            candidates.add((prefix or '') + variant + 'pyrus-setup:' + version)
+            expected_variants.add((variant, version))
     if explicit:
         selected = image(explicit)
-        expected_versions = {c.rsplit(':', 1)[1] for c in candidates}
-        actual_versions = set()
+        actual_variants = set()
         for ref in [explicit, *(selected.get('RepoTags') or [])]:
-            match = re.search(r'(?:^|/)pyrus-setup:([0-9]+\.[0-9]+\.[0-9]+)$', ref)
+            match = re.search(r'(?:^|/)(dev-)?pyrus-setup:([0-9]+\.[0-9]+\.[0-9]+)$', ref)
             if match:
-                actual_versions.add(match[1])
-        if expected_versions and not expected_versions.intersection(actual_versions):
-            raise ValueError('Версия локального pyrus-setup не совпадает с версией работающего Pyrus')
+                actual_variants.add((match[1] or '', match[2]))
+        if expected_variants and not expected_variants.intersection(actual_variants):
+            raise ValueError('Вариант или версия локального pyrus-setup не совпадает с версией/вариантом работающего Pyrus')
         return selected['Id'], explicit
     if len(candidates) != 1:
         raise ValueError('Не удалось однозначно выбрать версию pyrus-setup. Укажите --menu --setup-image IMAGE из локальных образов.')
