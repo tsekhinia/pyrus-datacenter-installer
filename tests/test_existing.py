@@ -77,6 +77,19 @@ class ExistingPolicyTests(unittest.TestCase):
         self.assertNotIn('MAIN_CONN_STRING', json.dumps(target))
         self.assertNotIn('db-secret', json.dumps(target))
 
+    def test_dev_digest_reference_resolves_local_tag_without_changing_registry(self):
+        anchor=deployment()[0]
+        anchor['Config']['Image']='registry.example:5000/team/dev-pyrus-web-api@sha256:web'
+        def local_image(reference):
+            if reference == anchor['Image']:
+                return {'RepoTags':['registry.example:5000/team/dev-pyrus-web-api:1.27.0']}
+            self.assertEqual(reference,'registry.example:5000/team/dev-pyrus-setup:1.27.0')
+            return {'Id':'sha256:dev-setup'}
+        with patch.object(existing,'image',side_effect=local_image):
+            identifier,reference=existing.setup_image(anchor,'')
+        self.assertEqual(identifier,'sha256:dev-setup')
+        self.assertEqual(reference,'registry.example:5000/team/dev-pyrus-setup:1.27.0')
+
     def test_lock_rejects_insecure_directory_and_symlink(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'locks'
@@ -141,6 +154,41 @@ class ExistingMenuTests(unittest.TestCase):
         self.assertNotIn('PUBLIC_LOGS_CONN_STRING', run['env'])
         self.assertFalse(any(c['args'][0] in ['compose', 'pull', 'up', 'create'] for c in self.calls()))
 
+    def dev_deployment(self):
+        self.model['containers'] = deployment('ubuntu')
+        self.model['containers'][0]['Config']['Image'] = 'registry.example/dev-pyrus-web-api:1.27.0'
+        self.model['images'] = {'registry.example/dev-pyrus-setup:1.27.0': {'Id': 'sha256:dev-setup'},
+                                'sha256:dev-setup': {'Id': 'sha256:dev-setup'}}
+
+    def test_dev_images_are_discovered_and_use_the_matching_dev_setup(self):
+        self.dev_deployment()
+        code, output = self.run_menu([('Выберите пункт: ', '2'), ('ID параметра (Enter — назад): ', '101301'),
+                                      ('Выберите пункт: ', '0')])
+        self.assertEqual(code, 0, output)
+        self.assertIn('Pyrus: "ubuntu"', output)
+        self.assertIn('dev-pyrus-setup:1.27.0', output)
+        self.assertIn('smtp-live.example.org', output)
+        runs = [c['args'] for c in self.calls() if c['args'][0] == 'run']
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(runs[0][-5:], ['sha256:dev-setup', '--setup', '-ls', '-id', '101301'])
+        self.assertFalse(any('registry.example/pyrus-setup:1.27.0' in c['args'] for c in self.calls()))
+        self.assertFalse(self.install.exists())
+        self.assertEqual(list(self.tmp.iterdir()), [])
+
+    def test_dev_setup_explicit_same_version_override_is_allowed(self):
+        self.dev_deployment()
+        code, output = self.run_menu([('Выберите пункт: ', '0')],
+                                      args=['--setup-image', 'registry.example/dev-pyrus-setup:1.27.0'])
+        self.assertEqual(code, 0, output)
+
+    def test_dev_target_does_not_allow_a_production_setup_override(self):
+        self.dev_deployment()
+        self.model['images']['registry.example/pyrus-setup:1.27.0'] = {'Id': 'sha256:production-setup'}
+        code, output = self.run_menu(args=['--setup-image', 'registry.example/pyrus-setup:1.27.0'])
+        self.assertNotEqual(code, 0)
+        self.assertIn('не совпадает', output)
+        self.assertFalse(any(c['args'][0] == 'run' for c in self.calls()))
+
     def test_secret_write_and_restart_do_not_reinitialize_or_touch_infrastructure(self):
         secret = ' smtp-secret-$()`quote" '
         code, output = self.run_menu([('Выберите пункт: ', '3'), ('ID параметра (Enter — назад): ', '101503'),
@@ -193,6 +241,9 @@ class ExistingMenuTests(unittest.TestCase):
         code, output = self.run_menu()
         self.assertNotEqual(code, 0)
         self.assertIn('No existing Pyrus containers found', output)
+        self.assertNotIn('--resume', output)
+        self.assertNotIn('private log', output)
+        self.assertNotIn('Data and volumes have been preserved', output)
         self.assertFalse(self.install.exists())
 
     def test_remote_docker_is_rejected_before_discovery(self):

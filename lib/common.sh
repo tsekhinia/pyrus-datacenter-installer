@@ -24,6 +24,10 @@ fatal() { printf '[ERROR] %s\n' "$*" >&2; exit 1; }
 on_error() {
     local code=$1 line=$2
     trap - ERR
+    if [[ ${ERROR_CONTEXT:-installation} == menu ]]; then
+        printf '[ERROR] Меню завершилось с ошибкой (код %s). Проверьте сообщение выше и повторите --menu.\n' "$code" >&2
+        exit "$code"
+    fi
     printf '[ERROR] Step failed (exit %s, installer line %s).\n' "$code" "$line" >&2
     printf 'Data and volumes have been preserved. Review the private log, then use --resume.\n' >&2
     exit "$code"

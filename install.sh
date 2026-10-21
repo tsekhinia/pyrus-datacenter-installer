@@ -20,6 +20,7 @@ main() {
     MENU_TLS_CERT=
     MENU_SETUP_IMAGE=
     PARAMETERS_EXISTING=false
+    ERROR_CONTEXT=installation
     while (($#)); do
         arg=$1; shift
         case "$arg" in
@@ -48,6 +49,7 @@ main() {
     validate_install_dir
     if ((mode_count == 0)) && [[ -z "$input" && -d "$STATE_DIR" ]]; then mode=menu; fi
     if [[ "$mode" == menu ]]; then
+        ERROR_CONTEXT=menu
         [[ -z "$input" ]] || fatal '--menu uses the running Pyrus configuration; do not pass --config'
         require_root
         manage_parameters
