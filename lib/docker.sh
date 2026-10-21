@@ -4,7 +4,11 @@ dc() {
         --env-file "$STATE_DIR/compose.env" --file "$INSTALL_DIR/docker-compose.yml" "$@"
 }
 dc_exec() { dc exec -T "$@"; }
-setup() { dc run --rm --no-deps -T pyrus-setup "$@"; }
+setup() {
+    if [[ ${PARAMETERS_EXISTING:-false} == true ]]; then
+        python3 "$ROOT_DIR/scripts/existing.py" setup "$EXISTING_TARGET" "$@"
+    else dc run --rm --no-deps -T pyrus-setup "$@"; fi
+}
 service_ready() {
     local id status
     id=$(dc ps -q "$1")
