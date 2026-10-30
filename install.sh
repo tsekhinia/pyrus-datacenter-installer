@@ -12,6 +12,10 @@ done
 trap 'on_error "$?" "$LINENO"' ERR
 
 main() {
+    if [[ ${1:-} == --logs ]]; then
+        shift
+        exec bash "$ROOT_DIR/collect-logs.sh" "$@"
+    fi
     local mode=install input='' arg mode_count=0
     INSTALL_DIR=/opt/pyrus
     ACCEPT_LOW_RESOURCES=false
