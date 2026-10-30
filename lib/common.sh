@@ -3,7 +3,7 @@ usage() {
     cat <<'EOF'
 Usage: sudo bash install.sh [options]
   --logs [options]            Export diagnostics ZIP to the current directory
-                              --date YYYY-MM-DD, --container NAME, --project NAME,
+                              --date YYYY.MM.DD, --container NAME, --project NAME,
                               --timeout SECONDS (put --logs before its options)
   --preflight                 Read-only host/Docker/network checks
   --plan                      Collect/validate configuration, print plan; no writes

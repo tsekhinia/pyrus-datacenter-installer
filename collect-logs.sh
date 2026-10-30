@@ -3,7 +3,8 @@
 set +x
 set -euo pipefail
 command -v python3 >/dev/null || { printf 'Требуется python3.\n' >&2; exit 1; }
-exec python3 - "$@" <<'PYTHON'
+# Python source uses stdin; preserve the caller's input for the date prompt.
+exec python3 - "$@" 3<&0 <<'PYTHON'
 import argparse
 import datetime as dt
 import os
@@ -20,12 +21,30 @@ import zipfile
 
 
 def parse_date(value):
-    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
-        raise argparse.ArgumentTypeError('Дата должна иметь вид YYYY-MM-DD')
+    if not re.fullmatch(r'\d{4}([.-])\d{2}\1\d{2}', value):
+        raise argparse.ArgumentTypeError('Дата должна иметь вид YYYY.MM.DD (также допустим YYYY-MM-DD для --date)')
     try:
-        return dt.date.fromisoformat(value)
+        return dt.date.fromisoformat(value.replace('.', '-'))
     except ValueError as exc:
         raise argparse.ArgumentTypeError(str(exc))
+
+
+def prompt_date():
+    with os.fdopen(3, 'r', encoding='utf-8') as answers:
+        while True:
+            print('За какую дату выгрузить логи? [Enter — сегодня; yyyy.mm.dd]: ', end='', flush=True)
+            answer = answers.readline()
+            if not answer:
+                raise EOFError('Не получен ответ. Для запуска без ввода укажите --date YYYY.MM.DD.')
+            value = answer.strip()
+            if not value:
+                return None
+            if re.fullmatch(r'\d{4}\.\d{2}\.\d{2}', value):
+                try:
+                    return parse_date(value)
+                except argparse.ArgumentTypeError:
+                    pass
+            print('Неверная дата. Укажите существующую дату в формате yyyy.mm.dd или нажмите Enter для сегодня.')
 
 
 def positive_seconds(value):
@@ -131,11 +150,19 @@ def compose_status(collector, project):
 
 def main():
     parser = argparse.ArgumentParser(prog='collect-logs.sh', description='Собрать диагностику Pyrus в ZIP в текущей папке.')
-    parser.add_argument('--date', type=parse_date, help='Дата логов YYYY-MM-DD; по умолчанию сегодня по часам PostgreSQL')
+    parser.add_argument('--date', type=parse_date, help='Дата логов YYYY.MM.DD без вопроса (также YYYY-MM-DD); без параметра — запрос даты, Enter = сегодня по PostgreSQL')
     parser.add_argument('--container', help='Контейнер PostgreSQL логов (обычно pyrus-logs-pgsql)')
     parser.add_argument('--project', help='Compose-проект, если на сервере несколько установок')
     parser.add_argument('--timeout', type=positive_seconds, default=180, help='Таймаут каждой команды в секундах (180)')
     args = parser.parse_args()
+    if args.date is None:
+        try:
+            args.date = prompt_date()
+        except (EOFError, OSError) as exc:
+            parser.error(str(exc))
+        except KeyboardInterrupt:
+            print('\nСбор отменён.', file=sys.stderr)
+            return 130
     os.umask(0o077)
     destination = Path.cwd()
     started = dt.datetime.now().astimezone()
@@ -163,9 +190,11 @@ def main():
                         day = parse_date(metadata.read_text(encoding='utf-8').strip().split('|')[0])
                     except (ValueError, argparse.ArgumentTypeError):
                         collector.note('Не удалось определить текущую дату PostgreSQL; дата хоста не подставляется.')
+                if day:
+                    print('Выгрузка логов за %s' % day.strftime('%Y.%m.%d'), flush=True)
                 for kind in ('errors', 'warnings'):
                     if day is None:
-                        collector.skip(kind, 'Не удалось определить дату БД. См. database_time.stderr.txt или задайте --date YYYY-MM-DD.')
+                        collector.skip(kind, 'Не удалось определить дату БД. См. database_time.stderr.txt или задайте --date YYYY.MM.DD.')
                     else:
                         table = 'events.%s_%s' % (kind, day.strftime('%Y_%m_%d'))
                         collector.run(kind, collector.psql(target['id'], 'SELECT * FROM %s;' % table))

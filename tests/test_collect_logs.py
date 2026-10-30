@@ -5,7 +5,10 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
+
+from test_parameters import terminal_run
 
 ROOT = Path(__file__).resolve().parents[1]
 FAKE = r'''#!/usr/bin/env python3
@@ -97,14 +100,14 @@ class CollectLogsTests(unittest.TestCase):
         self.env.pop('SUDO_UID', None)
         self.env.pop('SUDO_GID', None)
 
-    def run_collector(self, scenario='', args=(), installer=False):
+    def run_collector(self, scenario='', args=(), installer=False, input_text='\n'):
         previous_archives = set(self.cwd.glob('*.zip'))
         command = ['bash', str(ROOT / ('install.sh' if installer else 'collect-logs.sh'))]
         if installer:
             command.append('--logs')
         result = subprocess.run(command + list(args), cwd=self.cwd,
                                 env=dict(self.env, SCENARIO=scenario),
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
+                                input=input_text, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
         archives = list(self.cwd.glob('*.zip'))
         new_archives = set(archives) - previous_archives
         if new_archives:
@@ -130,6 +133,7 @@ class CollectLogsTests(unittest.TestCase):
         self.assertIn('2025-07-10', files['report.txt'])
         self.assertIn('СОБРАНО ПОЛНОСТЬЮ', files['report.txt'])
         self.assertIn('тестовая строка', files['errors.txt'])
+        self.assertIn('Enter — сегодня; yyyy.mm.dd', result.stdout)
         self.assertFalse(any(name.endswith('.stderr.txt') for name in files))
         commands = self.commands()
         queries = [c for c in commands if c[1] == 'exec']
@@ -151,6 +155,51 @@ class CollectLogsTests(unittest.TestCase):
         result, files, _ = self.run_collector(args=('--date', '2026-01-02', '--container', 'pyrus-logs-pgsql'), installer=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('events.errors_2026_01_02', files['report.txt'])
+        self.assertNotIn('За какую дату', result.stdout)
+
+    def test_prompted_date_selects_both_daily_tables(self):
+        result, files, _ = self.run_collector(input_text='2025.07.09\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('events.errors_2025_07_09', files['report.txt'])
+        self.assertIn('events.warnings_2025_07_09', files['report.txt'])
+        self.assertIn('Выгрузка логов за 2025.07.09', result.stdout)
+
+    def test_invalid_prompted_dates_retry_before_collecting(self):
+        answers = '2025-07-09\n2025.02.30\n2025.7.9\n2025.07.09;DROP TABLE events.errors;\n2025.07.09\n'
+        result, files, _ = self.run_collector(input_text=answers)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.count('Неверная дата.'), 4)
+        self.assertEqual(result.stdout.count('За какую дату'), 5)
+        self.assertIn('events.errors_2025_07_09', files['report.txt'])
+        self.assertNotIn('DROP TABLE', files['report.txt'])
+
+    def test_dotted_cli_date_skips_prompt(self):
+        result, files, _ = self.run_collector(args=('--date', '2024.02.29'), input_text='')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('За какую дату', result.stdout)
+        self.assertIn('events.errors_2024_02_29', files['report.txt'])
+        self.assertIn('events.warnings_2024_02_29', files['report.txt'])
+
+    def test_eof_does_not_silently_select_today(self):
+        result, _, archives = self.run_collector(input_text='')
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('Не получен ответ', result.stderr)
+        self.assertEqual(archives, [])
+        self.assertFalse(self.calls.exists())
+
+    def test_real_terminal_enter_and_dotted_date(self):
+        for answer, suffix in [('', '2025_07_10'), ('2024.02.29', '2024_02_29')]:
+            previous = set(self.cwd.glob('*.zip'))
+            with patch('test_parameters.ROOT', self.cwd):
+                code, output = terminal_run(['bash', str(ROOT / 'collect-logs.sh')], self.env,
+                    [('За какую дату выгрузить логи?', answer)])
+            self.assertEqual(code, 0, output)
+            created = set(self.cwd.glob('*.zip')) - previous
+            self.assertEqual(len(created), 1)
+            with zipfile.ZipFile(created.pop()) as bundle:
+                report = bundle.read('report.txt').decode('utf-8')
+            self.assertIn('events.errors_' + suffix, report)
+            self.assertIn('events.warnings_' + suffix, report)
 
     def test_invalid_and_injected_dates_are_rejected_before_commands(self):
         for value in ('2025-02-30', '2025-1-1', '2025-07-10;DROP TABLE events.errors;', '$(touch bad)'):
