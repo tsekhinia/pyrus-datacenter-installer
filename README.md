@@ -21,7 +21,10 @@ wget -O pyrus-collect-logs.sh https://raw.githubusercontent.com/tsekhinia/pyrus-
 - `docker_compose_ps.txt` — `docker compose ps -a` (или V1) выбранного проекта;
 - `errors.txt` и `warnings.txt` — все строки `events.errors_YYYY_MM_DD` и
   `events.warnings_YYYY_MM_DD` из `pyrus_logs` от имени `pyrusadm`;
-- `database_time.txt`, список контейнеров, `report.txt` и stderr каждой команды.
+- `database_time.txt`, список контейнеров, `report.txt` и непустой stderr команд.
+
+Пустые файлы `*.stderr.txt` в архив не добавляются. Сообщения в stderr
+сохраняются и при успешном завершении команды, например предупреждения утилит.
 
 По умолчанию выгружаются таблицы за **сегодня по дате PostgreSQL**; дата, время
 и часовой пояс БД сохраняются в архиве. Файлы читаются потоком, без накопления

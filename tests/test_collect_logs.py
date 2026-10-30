@@ -22,6 +22,8 @@ with open(os.environ['CALLS'], 'a') as output:
 mode = os.environ.get('SCENARIO', '')
 if name == 'free' and mode == 'timeout':
     time.sleep(5)
+if name == 'df' and mode == 'stderr-warning':
+    print('diagnostic warning', file=sys.stderr)
 if name in ('df', 'free'):
     print(name + ' human readable output')
 elif name == 'docker-compose':
@@ -96,6 +98,7 @@ class CollectLogsTests(unittest.TestCase):
         self.env.pop('SUDO_GID', None)
 
     def run_collector(self, scenario='', args=(), installer=False):
+        previous_archives = set(self.cwd.glob('*.zip'))
         command = ['bash', str(ROOT / ('install.sh' if installer else 'collect-logs.sh'))]
         if installer:
             command.append('--logs')
@@ -103,8 +106,10 @@ class CollectLogsTests(unittest.TestCase):
                                 env=dict(self.env, SCENARIO=scenario),
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
         archives = list(self.cwd.glob('*.zip'))
-        if archives:
-            with zipfile.ZipFile(archives[-1]) as bundle:
+        new_archives = set(archives) - previous_archives
+        if new_archives:
+            self.assertEqual(len(new_archives), 1)
+            with zipfile.ZipFile(new_archives.pop()) as bundle:
                 self.assertIsNone(bundle.testzip())
                 files = {name: bundle.read(name).decode('utf-8') for name in bundle.namelist()}
         else:
@@ -125,6 +130,7 @@ class CollectLogsTests(unittest.TestCase):
         self.assertIn('2025-07-10', files['report.txt'])
         self.assertIn('СОБРАНО ПОЛНОСТЬЮ', files['report.txt'])
         self.assertIn('тестовая строка', files['errors.txt'])
+        self.assertFalse(any(name.endswith('.stderr.txt') for name in files))
         commands = self.commands()
         queries = [c for c in commands if c[1] == 'exec']
         self.assertEqual(len(queries), 3)
@@ -159,7 +165,15 @@ class CollectLogsTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2, result.stderr)
             self.assertTrue(archives)
             self.assertIn('СОБРАНО ЧАСТИЧНО', files['report.txt'])
-            self.assertIn('ERROR:', files['warnings.stderr.txt'] + files['errors.stderr.txt'])
+            failed, succeeded = ('warnings', 'errors') if scenario == 'missing' else ('errors', 'warnings')
+            self.assertIn('ERROR:', files[failed + '.stderr.txt'])
+            self.assertNotIn(succeeded + '.stderr.txt', files)
+
+    def test_nonempty_stderr_is_kept_even_when_command_succeeds(self):
+        result, files, _ = self.run_collector('stderr-warning')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('diagnostic warning', files['df.stderr.txt'])
+        self.assertNotIn('free.stderr.txt', files)
 
     def test_empty_tables_are_a_success(self):
         result, files, _ = self.run_collector('empty')

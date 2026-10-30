@@ -67,6 +67,8 @@ class Collector:
             except OSError as exc:
                 stderr.write((str(exc) + '\n').encode())
                 code = 127
+        if error.stat().st_size == 0:
+            error.unlink()
         self.results.append((name, code, shlex.join(command)))
         print('[%s] %s' % ('OK' if code == 0 else 'ОШИБКА %s' % code, name), flush=True)
         return code, output
@@ -178,7 +180,7 @@ def main():
                       'Завершение: ' + dt.datetime.now().astimezone().isoformat(),
                       'Папка запуска: ' + str(destination),
                       'Результат: ' + ('СОБРАНО ЧАСТИЧНО' if incomplete else 'СОБРАНО ПОЛНОСТЬЮ'), '',
-                      'Каждая команда: *.txt — stdout, *.stderr.txt — stderr.',
+                      'Каждая команда: *.txt — stdout; *.stderr.txt сохраняется только при непустом stderr.',
                       'Ошибка отсутствующей таблицы не означает отсутствие событий.',
                       'Архив содержит исходные логи; в них могут быть конфиденциальные данные.', '']
             report += collector.notes + ['']
